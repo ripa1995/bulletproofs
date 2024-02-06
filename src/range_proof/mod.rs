@@ -83,7 +83,7 @@ impl RangeProof {
     /// # Example
     /// ```
     /// extern crate rand;
-    /// use crate::range_proof::thread_rng;
+    /// use rand::thread_rng;
     ///
     /// extern crate curve25519_dalek;
     /// use curve25519_dalek::scalar::Scalar;
@@ -182,7 +182,7 @@ impl RangeProof {
     /// # Example
     /// ```
     /// extern crate rand;
-    /// use crate::range_proof::thread_rng;
+    /// use rand::thread_rng;
     ///
     /// extern crate curve25519_dalek;
     /// use curve25519_dalek::scalar::Scalar;
