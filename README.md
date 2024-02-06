@@ -96,7 +96,7 @@ The following example shows how to create and verify a 32-bit rangeproof.
 # // code in the README.md is actually run as part of the test suite.
 #
 # extern crate rand;
-# use rand::thread_rng;
+# use crate::range_proof::thread_rng;
 #
 # extern crate curve25519_dalek;
 # use curve25519_dalek::scalar::Scalar;

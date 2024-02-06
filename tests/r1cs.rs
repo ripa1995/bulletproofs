@@ -5,13 +5,13 @@ extern crate curve25519_dalek;
 extern crate merlin;
 extern crate rand;
 
+use crate::range_proof::thread_rng;
 use bulletproofs::r1cs::*;
 use bulletproofs::{BulletproofGens, PedersenGens};
 use curve25519_dalek::ristretto::CompressedRistretto;
 use curve25519_dalek::scalar::Scalar;
 use merlin::Transcript;
 use rand::seq::SliceRandom;
-use rand::thread_rng;
 
 // Shuffle gadget (documented in markdown file)
 
@@ -372,7 +372,7 @@ pub fn range_proof<CS: ConstraintSystem>(
     v_assignment: Option<u64>,
     n: usize,
 ) -> Result<(), R1CSError> {
-    let mut exp_2 = Scalar::one();
+    let mut exp_2 = Scalar::ONE;
     for i in 0..n {
         // Create low-level variables and add them to constraints
         let (a, b, o) = cs.allocate_multiplier(v_assignment.map(|q| {
@@ -402,7 +402,7 @@ pub fn range_proof<CS: ConstraintSystem>(
 
 #[test]
 fn range_proof_gadget() {
-    use rand::thread_rng;
+    use crate::range_proof::thread_rng;
     use rand::Rng;
 
     let mut rng = thread_rng();
