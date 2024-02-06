@@ -70,7 +70,7 @@ impl LinearProof {
 
         // Append all public data to the transcript
         transcript.innerproduct_domain_sep(n as u64);
-        transcript.append_point(b"C", &C);
+        transcript.append_point(b"C", C);
         for b_i in &b_vec {
             transcript.append_scalar(b"b_i", b_i);
         }
@@ -92,13 +92,13 @@ impl LinearProof {
         let mut R_vec = Vec::with_capacity(lg_n);
 
         while n != 1 {
-            n = n / 2;
+            n /= 2;
             let (a_L, a_R) = a.split_at_mut(n);
             let (b_L, b_R) = b.split_at_mut(n);
             let (G_L, G_R) = G.split_at_mut(n);
 
-            let c_L = inner_product(&a_L, &b_R);
-            let c_R = inner_product(&a_R, &b_L);
+            let c_L = inner_product(a_L, b_R);
+            let c_R = inner_product(a_R, b_L);
 
             let s_j = Scalar::random(rng);
             let t_j = Scalar::random(rng);
@@ -128,9 +128,9 @@ impl LinearProof {
 
             for i in 0..n {
                 // a_L = a_L + x_j^{-1} * a_R
-                a_L[i] = a_L[i] + x_j_inv * a_R[i];
+                a_L[i] += x_j_inv * a_R[i];
                 // b_L = b_L + x_j * b_R
-                b_L[i] = b_L[i] + x_j * b_R[i];
+                b_L[i] += x_j * b_R[i];
                 // G_L = G_L + x_j * G_R
                 G_L[i] =
                     RistrettoPoint::vartime_multiscalar_mul(&[Scalar::ONE, x_j], &[G_L[i], G_R[i]]);
@@ -180,7 +180,7 @@ impl LinearProof {
 
         // Append all public data to the transcript
         transcript.innerproduct_domain_sep(n as u64);
-        transcript.append_point(b"C", &C);
+        transcript.append_point(b"C", C);
         for b_i in &b_vec {
             transcript.append_scalar(b"b_i", b_i);
         }
@@ -272,10 +272,10 @@ impl LinearProof {
             transcript.validate_and_append_point(b"R", R)?;
             let x_j = transcript.challenge_scalar(b"x_j");
             challenges.push(x_j);
-            n_mut = n_mut / 2;
+            n_mut /= 2;
             let (b_L, b_R) = b.split_at_mut(n_mut);
             for i in 0..n_mut {
-                b_L[i] = b_L[i] + x_j * b_R[i];
+                b_L[i] += x_j * b_R[i];
             }
             b = b_L;
         }

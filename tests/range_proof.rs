@@ -8,8 +8,6 @@ use merlin::Transcript;
 
 use bulletproofs::{BulletproofGens, PedersenGens, RangeProof};
 
-use hex;
-
 // Tests that proofs generated with v1.0.0 continue to verify in later versions.
 #[test]
 fn deserialize_and_verify() {
@@ -114,7 +112,7 @@ fn generate_test_vectors() {
     // generated reproducibly.
     let mut test_rng = ChaChaRng::from_seed([24u8; 32]);
 
-    let values = vec![0u64, 1, 2, 3, 4, 5, 6, 7];
+    let values = [0u64, 1, 2, 3, 4, 5, 6, 7];
     let blindings = (0..8)
         .map(|_| Scalar::random(&mut test_rng))
         .collect::<Vec<_>>();

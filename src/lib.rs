@@ -2,6 +2,8 @@
 #![doc = include_str!("../README.md")]
 #![doc(html_logo_url = "https://doc.dalek.rs/assets/dalek-logo-clear.png")]
 #![doc(html_root_url = "https://docs.rs/bulletproofs/2.0.0")]
+#![allow(clippy::too_many_arguments)]
+#![allow(clippy::type_complexity)]
 
 extern crate alloc;
 
