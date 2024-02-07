@@ -1,11 +1,11 @@
 #![allow(non_snake_case)]
 
-use clear_on_drop::clear::Clear;
 use core::mem;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::{Identity, MultiscalarMul};
 use merlin::Transcript;
+use zeroize::Zeroize;
 
 use super::{
     ConstraintSystem, LinearCombination, R1CSProof, RandomizableConstraintSystem,
@@ -64,22 +64,22 @@ pub struct RandomizingProver<'t, 'g> {
 /// Overwrite secrets with null bytes when they go out of scope.
 impl<'t, 'g> Drop for Prover<'t, 'g> {
     fn drop(&mut self) {
-        self.v.clear();
-        self.v_blinding.clear();
+        self.v.zeroize();
+        self.v_blinding.zeroize();
 
         // Important: due to how ClearOnDrop auto-implements InitializableFromZeroed
-        // for T: Default, calling .clear() on Vec compiles, but does not
+        // for T: Default, calling .zeroize() on Vec compiles, but does not
         // clear the content. Instead, it only clears the Vec's header.
         // Clearing the underlying buffer item-by-item will do the job, but will
         // keep the header as-is, which is fine since the header does not contain secrets.
         for e in self.a_L.iter_mut() {
-            e.clear();
+            e.zeroize();
         }
         for e in self.a_R.iter_mut() {
-            e.clear();
+            e.zeroize();
         }
         for e in self.a_O.iter_mut() {
-            e.clear();
+            e.zeroize();
         }
         // XXX use ClearOnDrop instead of doing the above
     }
@@ -675,7 +675,7 @@ impl<'t, 'g> Prover<'t, 'g> {
             .chain(s_R1.iter_mut())
             .chain(s_R2.iter_mut())
         {
-            scalar.clear();
+            scalar.zeroize();
         }
 
         Ok(R1CSProof {

@@ -13,12 +13,12 @@
 extern crate alloc;
 
 use alloc::vec::Vec;
-use clear_on_drop::clear::Clear;
 use core::iter;
 use curve25519_dalek::ristretto::{CompressedRistretto, RistrettoPoint};
 use curve25519_dalek::scalar::Scalar;
 use curve25519_dalek::traits::MultiscalarMul;
 use rand_core::{CryptoRng, RngCore};
+use zeroize::Zeroize;
 
 use crate::errors::MPCError;
 use crate::generators::{BulletproofGens, PedersenGens};
@@ -35,14 +35,44 @@ pub struct Party {}
 impl Party {
     /// Constructs a `PartyAwaitingPosition` with the given rangeproof parameters.
     #[allow(clippy::new_ret_no_self)]
+    #[cfg(feature = "scalar_range_proof")]
     pub fn new<'a>(
         bp_gens: &'a BulletproofGens,
         pc_gens: &'a PedersenGens,
-        v: u64,
+        v: Scalar,
         v_blinding: Scalar,
         n: usize,
     ) -> Result<PartyAwaitingPosition<'a>, MPCError> {
-        if !(n == 8 || n == 16 || n == 32 || n == 64) {
+        if !(n == 8 || n == 16 || n == 32 || n == 64 || n == 128) {
+            return Err(MPCError::InvalidBitsize);
+        }
+        if bp_gens.gens_capacity < n {
+            return Err(MPCError::InvalidGeneratorsLength);
+        }
+
+        let V = pc_gens.commit(v, v_blinding).compress();
+
+        Ok(PartyAwaitingPosition {
+            bp_gens,
+            pc_gens,
+            n,
+            v,
+            v_blinding,
+            V,
+        })
+    }
+
+    /// Constructs a `PartyAwaitingPosition` with the given rangeproof parameters.
+    #[allow(clippy::new_ret_no_self)]
+    #[cfg(not(feature = "scalar_range_proof"))]
+    pub fn new<'a>(
+        bp_gens: &'a BulletproofGens,
+        pc_gens: &'a PedersenGens,
+        v: u128,
+        v_blinding: Scalar,
+        n: usize,
+    ) -> Result<PartyAwaitingPosition<'a>, MPCError> {
+        if !(n == 8 || n == 16 || n == 32 || n == 64 || n == 128) {
             return Err(MPCError::InvalidBitsize);
         }
         if bp_gens.gens_capacity < n {
@@ -63,11 +93,23 @@ impl Party {
 }
 
 /// A party waiting for the dealer to assign their position in the aggregation.
+#[cfg(feature = "scalar_range_proof")]
 pub struct PartyAwaitingPosition<'a> {
     bp_gens: &'a BulletproofGens,
     pc_gens: &'a PedersenGens,
     n: usize,
-    v: u64,
+    v: Scalar,
+    v_blinding: Scalar,
+    V: CompressedRistretto,
+}
+
+/// A party waiting for the dealer to assign their position in the aggregation.
+#[cfg(not(feature = "scalar_range_proof"))]
+pub struct PartyAwaitingPosition<'a> {
+    bp_gens: &'a BulletproofGens,
+    pc_gens: &'a PedersenGens,
+    n: usize,
+    v: u128,
     v_blinding: Scalar,
     V: CompressedRistretto,
 }
@@ -104,6 +146,9 @@ impl<'a> PartyAwaitingPosition<'a> {
         for (i, (G_i, H_i)) in bp_share.G(self.n).zip(bp_share.H(self.n)).enumerate() {
             // If v_i = 0, we add a_L[i] * G[i] + a_R[i] * H[i] = - H[i]
             // If v_i = 1, we add a_L[i] * G[i] + a_R[i] * H[i] =   G[i]
+            #[cfg(feature = "scalar_range_proof")]
+            let v_i = Choice::from(extract_scalar_bit(&self.v, i));
+            #[cfg(not(feature = "scalar_range_proof"))]
             let v_i = Choice::from(((self.v >> i) & 1) as u8);
             let mut point = -H_i;
             point.conditional_assign(G_i, v_i);
@@ -146,16 +191,32 @@ impl<'a> PartyAwaitingPosition<'a> {
 /// Overwrite secrets with null bytes when they go out of scope.
 impl<'a> Drop for PartyAwaitingPosition<'a> {
     fn drop(&mut self) {
-        self.v.clear();
-        self.v_blinding.clear();
+        self.v.zeroize();
+        self.v_blinding.zeroize();
     }
 }
 
 /// A party which has committed to the bits of its value
 /// and is waiting for the aggregated value challenge from the dealer.
+#[cfg(feature = "scalar_range_proof")]
 pub struct PartyAwaitingBitChallenge<'a> {
     n: usize, // bitsize of the range
-    v: u64,
+    v: Scalar,
+    v_blinding: Scalar,
+    j: usize,
+    pc_gens: &'a PedersenGens,
+    a_blinding: Scalar,
+    s_blinding: Scalar,
+    s_L: Vec<Scalar>,
+    s_R: Vec<Scalar>,
+}
+
+/// A party which has committed to the bits of its value
+/// and is waiting for the aggregated value challenge from the dealer.
+#[cfg(not(feature = "scalar_range_proof"))]
+pub struct PartyAwaitingBitChallenge<'a> {
+    n: usize, // bitsize of the range
+    v: u128,
     v_blinding: Scalar,
     j: usize,
     pc_gens: &'a PedersenGens,
@@ -195,7 +256,10 @@ impl<'a> PartyAwaitingBitChallenge<'a> {
         let mut exp_y = offset_y; // start at y^j
         let mut exp_2 = Scalar::ONE; // start at 2^0 = 1
         for i in 0..n {
+            #[cfg(not(feature = "scalar_range_proof"))]
             let a_L_i = Scalar::from((self.v >> i) & 1);
+            #[cfg(feature = "scalar_range_proof")]
+            let a_L_i = Scalar::from(extract_scalar_bit(&self.v, i));
             let a_R_i = a_L_i - Scalar::ONE;
 
             l_poly.0[i] = a_L_i - vc.z;
@@ -239,21 +303,21 @@ impl<'a> PartyAwaitingBitChallenge<'a> {
 /// Overwrite secrets with null bytes when they go out of scope.
 impl<'a> Drop for PartyAwaitingBitChallenge<'a> {
     fn drop(&mut self) {
-        self.v.clear();
-        self.v_blinding.clear();
-        self.a_blinding.clear();
-        self.s_blinding.clear();
+        self.v.zeroize();
+        self.v_blinding.zeroize();
+        self.a_blinding.zeroize();
+        self.s_blinding.zeroize();
 
         // Important: due to how ClearOnDrop auto-implements InitializableFromZeroed
-        // for T: Default, calling .clear() on Vec compiles, but does not
+        // for T: Default, calling .zeroize() on Vec compiles, but does not
         // clear the content. Instead, it only clears the Vec's header.
         // Clearing the underlying buffer item-by-item will do the job, but will
         // keep the header as-is, which is fine since the header does not contain secrets.
         for e in self.s_L.iter_mut() {
-            e.clear();
+            e.zeroize();
         }
         for e in self.s_R.iter_mut() {
-            e.clear();
+            e.zeroize();
         }
     }
 }
@@ -307,13 +371,21 @@ impl PartyAwaitingPolyChallenge {
 /// Overwrite secrets with null bytes when they go out of scope.
 impl Drop for PartyAwaitingPolyChallenge {
     fn drop(&mut self) {
-        self.v_blinding.clear();
-        self.a_blinding.clear();
-        self.s_blinding.clear();
-        self.t_1_blinding.clear();
-        self.t_2_blinding.clear();
+        self.v_blinding.zeroize();
+        self.a_blinding.zeroize();
+        self.s_blinding.zeroize();
+        self.t_1_blinding.zeroize();
+        self.t_2_blinding.zeroize();
 
         // Note: polynomials r_poly, l_poly and t_poly
         // are cleared within their own Drop impls.
     }
+}
+
+#[cfg(feature = "scalar_range_proof")]
+fn extract_scalar_bit(scalar: &Scalar, index: usize) -> u8 {
+    let u8_bits = u8::BITS as usize;
+    let byte_index = index / u8_bits;
+    let bit_index = index % u8_bits;
+    (scalar[byte_index] >> bit_index) & 1
 }

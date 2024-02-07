@@ -18,7 +18,7 @@ description = "A pure-Rust implementation of Bulletproofs using Ristretto"
 edition = "2021"
 
 [dependencies]
-curve25519-dalek = { version = ">= 4.0, < 4.2", default-features = false, features = ["serde", "alloc", "rand_core", "digest"] }
+curve25519-dalek = { version = ">= 4.0, < 4.2", features = ["serde", "rand_core", "digest"] }
 subtle = { version = "2", default-features = false }
 sha3 = { version = "0.10", default-features = false }
 digest = { version = "0.10", default-features = false }
@@ -29,7 +29,7 @@ serde = { version = "1", default-features = false, features = ["alloc"] }
 serde_derive = { version = "1", default-features = false }
 thiserror = { version = "1", optional = true }
 merlin = { version = "3", default-features = false }
-clear_on_drop = { version = "0.2", default-features = false, features = ["nightly"] }
+zeroize = "1"
 
 [dev-dependencies]
 hex = "0.3"
@@ -41,9 +41,14 @@ rand_chacha = "0.3"
 default = ["std"]
 # yoloproofs = []
 std = ["rand", "rand/std", "thiserror"]
+scalar_range_proof = []
 
 [[test]]
 name = "range_proof"
+
+[[test]]
+name = "scalar_range_proof"
+required-features = ["scalar_range_proof"]
 
 [[test]]
 name = "r1cs"

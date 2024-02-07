@@ -1,8 +1,11 @@
-use rand_chacha::rand_core::SeedableRng;
+#[cfg(not(feature = "scalar_range_proof"))]
+use rand_chacha::ChaChaRng;
+#[cfg(not(feature = "scalar_range_proof"))]
+use rand_core::SeedableRng;
 
 use curve25519_dalek::ristretto::CompressedRistretto;
+#[cfg(not(feature = "scalar_range_proof"))]
 use curve25519_dalek::scalar::Scalar;
-use rand_chacha::ChaChaRng;
 
 use merlin::Transcript;
 
@@ -104,20 +107,21 @@ fn deserialize_and_verify() {
 // We allow(dead_code) to ensure that it continues to compile.
 //#[test]
 #[allow(dead_code)]
+#[cfg(not(feature = "scalar_range_proof"))]
 fn generate_test_vectors() {
     let pc_gens = PedersenGens::default();
-    let bp_gens = BulletproofGens::new(64, 8);
+    let bp_gens = BulletproofGens::new(128, 8);
 
     // Use a deterministic RNG for proving, so the test vectors can be
     // generated reproducibly.
     let mut test_rng = ChaChaRng::from_seed([24u8; 32]);
 
-    let values = [0u64, 1, 2, 3, 4, 5, 6, 7];
+    let values = [0u128, 1, 2, 3, 4, 5, 6, 7];
     let blindings = (0..8)
         .map(|_| Scalar::random(&mut test_rng))
         .collect::<Vec<_>>();
 
-    for n in &[8, 16, 32, 64] {
+    for n in &[8, 16, 32, 64, 128] {
         for m in &[1, 2, 4, 8] {
             let mut transcript = Transcript::new(b"Deserialize-And-Verify Test");
             let (proof, value_commitments) = RangeProof::prove_multiple(
